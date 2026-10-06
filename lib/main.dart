@@ -473,7 +473,7 @@ class _FuelFilterWidgetState extends State<FuelFilterWidget> {
           onPressed: () async {
             final picked = await showDateRangePicker(
               context: context,
-              firstDate: DateTime(2020),
+              firstDate: DateTime(2026, 1, 1),
               lastDate: DateTime.now(),
               initialDateRange: _currentFilter.customDateRange,
             );
@@ -1362,7 +1362,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     final pickedDate = await showDatePicker(
                       context: context,
                       initialDate: selectedDate,
-                      firstDate: DateTime(2020),
+                      firstDate: DateTime(2026, 1, 1),
                       lastDate: DateTime.now(),
                     );
                     if (pickedDate != null) {

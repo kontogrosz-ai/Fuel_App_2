@@ -47,3 +47,7 @@ Obsługiwane priorytety kwoty końcowej: RAZEM, SUMA, SUMA PLN, DO ZAPŁATY, ZAP
 - **Wszystko** oznacza dane od początku gromadzenia danych.
 - **Ostatnie 12M** oznacza ostatnie **365 dni** liczone wstecz od bieżącego dnia.
 - Ustawienie zakresu dla LPG jest niezależne od ustawienia zakresu dla PB.
+### 07 — data początkowa kalendarza
+- Zmieniono najwcześniejszą możliwą datę wyboru w kalendarzu z **01.01.2020** na **01.01.2026**.
+- Zmiana dotyczy wyboru daty tankowania oraz własnego zakresu dat w filtrach.
+- Data końcowa nadal jest ustawiana na bieżący dzień.
