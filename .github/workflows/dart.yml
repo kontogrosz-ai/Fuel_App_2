@@ -90,10 +90,10 @@ jobs:
       - name: Przeniesienie i zmiana nazwy APK
         run: |
           mkdir -p build/app/outputs/renamed
-          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/renamed/07_Fuel_App_OCR_SUMAPLN.apk
+          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/renamed/10_Fuel_App_GLOS_POPRAWA.apk
 
       - name: Udostępnienie pliku APK do pobrania
         uses: actions/upload-artifact@v4
         with:
-          name: 07_Fuel_App_OCR_SUMAPLN
-          path: build/app/outputs/renamed/07_Fuel_App_OCR_SUMAPLN.apk
+          name: 10_Fuel_App_GLOS_POPRAWA
+          path: build/app/outputs/renamed/10_Fuel_App_GLOS_POPRAWA.apk
