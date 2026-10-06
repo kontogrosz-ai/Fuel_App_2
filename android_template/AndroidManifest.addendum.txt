@@ -1,0 +1,2 @@
+<!-- Fuel App 2.0: required for voice input -->
+<uses-permission android:name="android.permission.RECORD_AUDIO" />

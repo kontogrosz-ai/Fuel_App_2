@@ -1,0 +1,27 @@
+Podsumowanie obecnej funkcjonalności aplikacji:
+	Struktura danych (FuelEntry i FuelType)
+	Obsługa dwóch rodzajów paliwa: Benzyna (PB) oraz LPG.
+	Przechowywanie kosztu, ilości litrów, stanu licznika (odometer), dystansu odcinka (tripDistance) oraz daty wpisu.
+	Automatyczne przeliczanie ceny za litr oraz chwilowego i średniego spalania (L/100km).
+	Interfejs użytkownika (UI)
+	Widok z dwoma zakładkami (TabBarView): osobiście dla PB i LPG.
+	Karta podsumowania (średnie spalanie, łączny koszt, łączna ilość litrów).
+	Lista wpisów dla każdego rodzaju paliwa.
+	Skanowanie paragonów (OCR)
+	Wykorzystanie ImagePicker i google_mlkit_text_recognition.
+	Automatyczne wykrywanie:
+	Rodzaju paliwa (słowa kluczowe LPG, AUTOGAZ).
+	Litrów (L, litr, itp.).
+	Kwoty za tankowanie.
+	Wprowadzanie i przeliczanie danych
+	Okno dialogowe z możliwością edycji wykrytych wartości.
+	Automatyczne wyliczanie stanu licznika na podstawie przebiegu (i odwrotnie).
+	Raportowanie i Filtrowanie
+	Filtrowanie wpisów według zakresu dat (showDateRangePicker).
+	Eksport danych do pliku .xlsx z osobnymi arkuszami dla PB i LPG oraz ich udostępnianie (share_plus).
+Możliwe kolejne kroki / usprawnienia:
+	Trwałość danych (Persistence): Obecnie wpisy przechowywane są w pamięci RAM (List<FuelEntry> _entries = []) i znikają po zamknięciu aplikacji. Możemy dodać zapisywanie do bazy lokalnej (np. sqflite / isar / shared_preferences).
+	Edycja i usuwanie wpisów: Dodanie możliwości usunięcia wpisu (np. Dismissible swipem) lub jego edycji po kliknięciu na liście.
+	Wybór zdjęcia z galerii: Rozszerzenie OCR o możliwość wyboru istniejącego zdjęcia z galerii telefonu, a nie tylko z aparatu.
+	Wykresy i statystyki: Dodanie widoku z wykresami cen paliw lub spalania w czasie (np. przy użyciu fl_chart).
+
