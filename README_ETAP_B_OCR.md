@@ -30,3 +30,20 @@ Dodano zależność:
 W tej wersji ulepszono wyłącznie odczyt danych z paragonu. OCR uzupełnia istniejący formularz i nie zapisuje tankowania automatycznie.
 
 Obsługiwane priorytety kwoty końcowej: RAZEM, SUMA, SUMA PLN, DO ZAPŁATY, ZAPŁACONO, NALEŻNOŚĆ. Cena jednostkowa nie jest używana jako koszt całkowity. Cena jednostkowa, np. 6,49 zł/l, jest pomijana jako koszt całego tankowania. Obsługiwany jest polski przecinek dziesiętny.
+
+
+## Historia zmian
+
+### 05 — zakładka Stats
+- Dodano czwartą zakładkę **Stats**.
+- Zakładka jest obecnie celowo pusta.
+- Nie dodano żadnych obliczeń ani statystyk.
+- Pozostałe zakładki i ich działanie pozostają bez zmian.
+
+### 06 — własne filtry zakładki Wykresy
+- Zakładka **Wykresy** nie korzysta już z aktywnego filtra zakładek LPG/PB.
+- Dodano osobne filtry zakresu danych dla **LPG** i **Benzyna (PB)**.
+- Dostępne zakresy: **Wszystko** oraz **Ostatnie 12M**.
+- **Wszystko** oznacza dane od początku gromadzenia danych.
+- **Ostatnie 12M** oznacza ostatnie **365 dni** liczone wstecz od bieżącego dnia.
+- Ustawienie zakresu dla LPG jest niezależne od ustawienia zakresu dla PB.

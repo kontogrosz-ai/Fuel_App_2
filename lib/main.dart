@@ -72,6 +72,8 @@ enum TimeFilterOption { month1, months3, months6, year1, all }
 enum CountFilterOption { c5, c10, c20, cAll }
 enum DistanceFilterOption { km500, km1000, km5000, kmAll }
 
+enum ChartPeriodOption { all, year }
+
 @immutable
 class FuelFilterState {
   const FuelFilterState({
@@ -576,13 +578,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   late TabController _tabController;
 
   FuelType _chartFuelType = FuelType.lpg;
+  ChartPeriodOption _lpgChartPeriod = ChartPeriodOption.all;
+  ChartPeriodOption _pbChartPeriod = ChartPeriodOption.all;
   FuelFilterState _fuelFilterState = FuelFilterState();
   final stt.SpeechToText _speech = stt.SpeechToText();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this, initialIndex: 0);
+    _tabController = TabController(length: 4, vsync: this, initialIndex: 0);
     _initialize();
   }
 
@@ -758,6 +762,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   List<FuelEntry> _entriesForType(FuelType type) {
     return _getFilterResultForType(type).filteredEntries;
+  }
+
+  List<FuelEntry> _chartEntriesForType(FuelType type) {
+    final allEntries = _entries.where((e) => e.fuelType == type).toList();
+    final period = type == FuelType.lpg ? _lpgChartPeriod : _pbChartPeriod;
+    if (period == ChartPeriodOption.all) return allEntries;
+
+    final now = _dateOnly(DateTime.now());
+    final cutoff = now.subtract(const Duration(days: 365));
+    return allEntries.where((entry) => !entry.date.isBefore(cutoff)).toList();
   }
 
   double? _calculateConsumptionForList(List<FuelEntry> list) {
@@ -1592,6 +1606,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             Tab(text: 'LPG', icon: Icon(Icons.propane_tank)),
             Tab(text: 'Benzyna (PB)', icon: Icon(Icons.local_gas_station)),
             Tab(text: 'Wykresy', icon: Icon(Icons.bar_chart)),
+            Tab(text: 'Stats', icon: Icon(Icons.analytics)),
           ],
         ),
         actions: [
@@ -1629,6 +1644,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     _buildFuelTab(FuelType.lpg),
                     _buildFuelTab(FuelType.pb),
                     _buildChartsTab(),
+                    const SizedBox.shrink(),
                   ],
                 ),
       floatingActionButton: FloatingActionButton(
@@ -1774,7 +1790,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildChartsTab() {
-    List<FuelEntry> chartEntries = _entriesForType(_chartFuelType);
+    final chartEntries = _chartEntriesForType(_chartFuelType);
 
     final Map<String, List<FuelEntry>> monthlyGroups = {};
     for (var entry in chartEntries) {
@@ -1789,6 +1805,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         monthlyAverages[month] = avg;
       }
     });
+
+    final currentPeriod = _chartFuelType == FuelType.lpg
+        ? _lpgChartPeriod
+        : _pbChartPeriod;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -1806,24 +1826,33 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             },
           ),
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.teal.shade50,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.filter_list, size: 18, color: Colors.teal),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Wykres korzysta z aktywnego filtra z zakładek paliwowych.',
-                    style: TextStyle(fontSize: 12, color: Colors.teal.shade800),
-                  ),
-                ),
-              ],
-            ),
+          const Text(
+            'Zakres danych wykresu',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<ChartPeriodOption>(
+            segments: const [
+              ButtonSegment(value: ChartPeriodOption.all, label: Text('Wszystko')),
+              ButtonSegment(value: ChartPeriodOption.year, label: Text('Ostatnie 12M')),
+            ],
+            selected: {currentPeriod},
+            onSelectionChanged: (Set<ChartPeriodOption> newSelection) {
+              setState(() {
+                if (_chartFuelType == FuelType.lpg) {
+                  _lpgChartPeriod = newSelection.first;
+                } else {
+                  _pbChartPeriod = newSelection.first;
+                }
+              });
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            currentPeriod == ChartPeriodOption.all
+                ? 'Wszystko — od początku gromadzenia danych.'
+                : 'Ostatnie 12M — ostatnie 365 dni liczone od dzisiaj.',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
           const SizedBox(height: 24),
           Text(
@@ -1840,7 +1869,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       height: 200,
                       child: Center(
                         child: Text(
-                          'Brak wystarczających danych do wygenerowania wykresu dla wybranych kryteriów.',
+                          'Brak wystarczających danych do wygenerowania wykresu dla wybranego zakresu.',
                           style: TextStyle(color: Colors.grey),
                           textAlign: TextAlign.center,
                         ),
@@ -1850,8 +1879,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       height: 250,
                       child: LayoutBuilder(
                         builder: (context, constraints) {
-                          final chartWidth = monthlyAverages.length * 64.0 >
-                                  constraints.maxWidth
+                          final chartWidth = monthlyAverages.length * 64.0 > constraints.maxWidth
                               ? monthlyAverages.length * 64.0
                               : constraints.maxWidth;
                           return SingleChildScrollView(
