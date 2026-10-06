@@ -72,3 +72,17 @@ Obsługiwane priorytety kwoty końcowej: RAZEM, SUMA, SUMA PLN, DO ZAPŁATY, ZAP
 - Paczka źródłowa do GitHub: `09_Fuel_App_WYKRESY_FILTRY.zip`.
 - APK generowane przez GitHub Actions: `09_Fuel_App_WYKRESY_FILTRY.apk`.
 - ZIP zawierający gotowy APK (poza paczką źródłową GitHub): `09_Fuel_App_WYKRESY_FILTRY_apk.zip`.
+
+## ETAP 10 – poprawa wprowadzania głosowego
+- Ulepszono parser polskiej mowy dla danych tankowania.
+- **Dystans odcinka km**: obsługa liczb zapisanych cyframi, także z odstępami jako separatorami tysięcy, oraz liczb wypowiadanych słownie.
+- **Stan licznika km**: obsługa większych wartości, np. „sto pięćdziesiąt tysięcy”, oraz wartości zapisanych cyframi.
+- **Litry**: poprawiono rozpoznawanie liczb słownych i dziesiętnych, np. „czterdzieści dwa i pół litra” oraz „42,5 litra”.
+- **Koszt całkowity**: poprawiono rozpoznawanie kwot wypowiadanych słownie, np. „sto dwadzieścia pięć złotych”. Nadal używany jest koszt całkowity, a nie cena jednostkowa.
+- **Data**: oprócz dat liczbowych obsługiwane są daty z nazwą miesiąca, np. „5 października 2026” oraz typowe formy słowne, np. „piątego października dwa tysiące dwudziestego szóstego”.
+- Po rozpoznaniu dane są nadal przekazywane do istniejącego formularza tankowania.
+- **Brak automatycznego zapisu** — użytkownik zawsze może sprawdzić i poprawić dane przed ręcznym zatwierdzeniem.
+- Pozostała funkcjonalność aplikacji pozostaje bez zmian.
+- Paczka źródłowa do GitHub: `10_Fuel_App_GLOS_POPRAWA.zip`.
+- APK generowane przez GitHub Actions: `10_Fuel_App_GLOS_POPRAWA.apk`.
+- ZIP zawierający gotowy APK: `10_Fuel_App_GLOS_POPRAWA_apk.zip`.

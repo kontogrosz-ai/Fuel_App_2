@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -1028,6 +1029,129 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     };
   }
 
+  double? _parsePolishSpokenNumber(String value) {
+    final normalized = value
+        .toLowerCase()
+        .replaceAll('ł', 'l')
+        .replaceAll('ó', 'o')
+        .replaceAll('ą', 'a')
+        .replaceAll('ę', 'e')
+        .replaceAll('ś', 's')
+        .replaceAll('ć', 'c')
+        .replaceAll('ź', 'z')
+        .replaceAll('ż', 'z')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    final direct = double.tryParse(
+      normalized
+          .replaceAll(RegExp(r'(?<=\d)[\s.](?=\d)'), '')
+          .replaceAll(',', '.'),
+    );
+    if (direct != null) return direct;
+
+    final units = <String, int>{
+      'zero': 0,
+      'jeden': 1, 'jedna': 1, 'jedno': 1,
+      'dwa': 2, 'dwie': 2,
+      'trzy': 3, 'cztery': 4, 'piec': 5, 'szesc': 6, 'siedem': 7,
+      'osiem': 8, 'dziewiec': 9, 'dziesiec': 10, 'jedenascie': 11,
+      'dwanascie': 12, 'trzynascie': 13, 'czternascie': 14,
+      'pietnascie': 15, 'szesnascie': 16, 'siedemnascie': 17,
+      'osiemnascie': 18, 'dziewietnascie': 19, 'dwadziescia': 20,
+      'trzydziesci': 30, 'czterdziesci': 40, 'piecdziesiat': 50,
+      'szescdziesiat': 60, 'siedemdziesiat': 70, 'osiemdziesiat': 80,
+      'dziewiecdziesiat': 90,
+      'sto': 100, 'dwieście': 200, 'dwiescie': 200, 'trzysta': 300,
+      'czterysta': 400, 'piecset': 500, 'szescset': 600,
+      'siedemset': 700, 'osiemset': 800, 'dziewiecset': 900,
+    };
+    final scales = <String, int>{
+      'tysiac': 1000, 'tysiaca': 1000, 'tysiace': 1000, 'tysiacu': 1000, 'tysiacach': 1000, 'tysiecy': 1000,
+      'milion': 1000000, 'miliony': 1000000, 'milionow': 1000000,
+    };
+
+    var words = normalized.split(' ')
+        .map((w) => w.replaceAll(RegExp(r'[^a-z0-9.,-]'), ''))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    if (words.isEmpty) return null;
+
+    // Typowe odmiany używane przez rozpoznawanie mowy, np. "piec"/"pieciu".
+    final aliases = <String, String>{
+      'jednego': 'jeden', 'jednej': 'jedna', 'jednym': 'jeden', 'jedna': 'jeden',
+      'pol': 'pol',
+      'dwoch': 'dwa', 'trzech': 'trzy', 'czterech': 'cztery',
+      'pieciu': 'piec', 'szesciu': 'szesc', 'siedmiu': 'siedem',
+      'osmiu': 'osiem', 'dziewieciu': 'dziewiec',
+      'dziesieciu': 'dziesiec', 'jedenastu': 'jedenascie',
+      'dwunastu': 'dwanascie', 'trzynastu': 'trzynascie',
+      'czternastu': 'czternascie', 'pietnastu': 'pietnascie',
+      'szesnastu': 'szesnascie', 'siedemnastu': 'siedemnascie',
+      'osiemnastu': 'osiemnascie', 'dziewietnastu': 'dziewietnascie',
+      'dwudziestu': 'dwadziescia', 'trzydziestu': 'trzydziesci',
+      'czterdziestu': 'czterdziesci', 'piecdziesieciu': 'piecdziesiat',
+      'szescdziesieciu': 'szescdziesiat', 'siedemdziesieciu': 'siedemdziesiat',
+      'osiemdziesieciu': 'osiemdziesiat', 'dziewiecdziesieciu': 'dziewiecdziesiat',
+      'dwudziesty': 'dwadziescia', 'dwudziestego': 'dwadziescia',
+      'trzydziestego': 'trzydziesci', 'czterdziestego': 'czterdziesci',
+      'piecdziesiatego': 'piecdziesiat', 'szescdziesiatego': 'szescdziesiat',
+      'siedemdziesiatego': 'siedemdziesiat', 'osiemdziesiatego': 'osiemdziesiat',
+      'dziewiecdziesiatego': 'dziewiecdziesiat',
+      'pierwszego': 'jeden', 'drugiego': 'dwa', 'trzeciego': 'trzy',
+      'czwartego': 'cztery', 'piatego': 'piec', 'szostego': 'szesc',
+      'siodmego': 'siedem', 'osmego': 'osiem', 'dziewiatego': 'dziewiec',
+      'dziesiatego': 'dziesiec', 'jedenastego': 'jedenascie',
+      'dwunastego': 'dwanascie', 'trzynastego': 'trzynascie',
+      'czternastego': 'czternascie', 'pietnastego': 'pietnascie',
+      'szesnastego': 'szesnascie', 'siedemnastego': 'siedemnascie',
+      'osiemnastego': 'osiemnascie', 'dziewietnastego': 'dziewietnascie',
+    };
+    words = words.map((w) => aliases[w] ?? w).toList();
+
+    // Obsługa „czterdzieści dwa i pół” jako 42,5.
+    final halfIndex = words.indexOf('pol');
+    if (halfIndex == words.length - 1 && halfIndex > 0 && words[halfIndex - 1] == 'i') {
+      final integer = _parsePolishSpokenNumber(words.sublist(0, halfIndex - 1).join(' '));
+      if (integer != null) return integer + 0.5;
+    }
+
+    // Obsługa dziesiętnych wypowiadanych jako „42 przecinek 5”.
+    final commaIndex = words.indexWhere((w) => w == 'przecinek' || w == 'kropka');
+    if (commaIndex >= 0) {
+      final integer = _parsePolishSpokenNumber(words.sublist(0, commaIndex).join(' '));
+      final fractionWords = words.sublist(commaIndex + 1);
+      if (integer != null && fractionWords.isNotEmpty) {
+        final fraction = _parsePolishSpokenNumber(fractionWords.join(' '));
+        if (fraction != null) {
+          final digits = fraction.toInt().toString();
+          return integer + int.parse(digits) / math.pow(10, digits.length);
+        }
+      }
+    }
+
+    var total = 0;
+    var current = 0;
+    for (final word in words) {
+      if (units.containsKey(word)) {
+        current += units[word]!;
+      } else if (scales.containsKey(word)) {
+        final scale = scales[word]!;
+        total += (current == 0 ? 1 : current) * scale;
+        current = 0;
+      } else if (RegExp(r'^\d+(?:[.,]\d+)?$').hasMatch(word)) {
+        final number = double.tryParse(word.replaceAll(',', '.'));
+        if (number != null) {
+          if (total == 0 && current == 0) return number;
+          current += number.round();
+        }
+      } else {
+        return null;
+      }
+    }
+    return (total + current).toDouble();
+  }
+
   Map<String, dynamic> _parseVoiceFuelData(String text) {
     final normalized = text
         .toLowerCase()
@@ -1049,17 +1173,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       detectedType = FuelType.pb;
     }
 
-    double? extractNumber(String value) {
-      final cleaned = value
-          .replaceAll(RegExp(r'(?<=\d)[\s.](?=\d)', caseSensitive: false), '')
-          .replaceAll(' ', '')
-          .replaceAll(',', '.');
-      return double.tryParse(cleaned);
-    }
+    double? extractNumber(String value) => _parsePolishSpokenNumber(value);
 
     double? liters;
     final litersMatch = RegExp(
-      r'(\d+(?:[.,]\d+)?)\s*(?:l|litrow|litry|litr|litra)\b',
+      r'((?:\d[\d .]*(?:[.,]\d+)?)|(?:[a-z ]+?))\s*(?:l|litrow|litry|litr|litra)\b',
     ).firstMatch(normalized);
     if (litersMatch != null) {
       liters = extractNumber(litersMatch.group(1)!);
@@ -1067,13 +1185,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     double? cost;
     final costMatch = RegExp(
-      r'(?:za|kwota|koszt|razem|suma|zaplacilem|zaplacono|do zaplaty)\s*(?:to|jest)?\s*(\d+(?:[.,]\d+)?)\s*(?:zl|pln|zlotych|zloty)?\b',
+      r'(?:za|kwota|koszt|razem|suma|zaplacilem|zaplacono|do zaplaty)\s*(?:to|jest)?\s*([^,.;]+?)(?=\s*(?:zl|pln|zlotych|zloty)\b|[,.;]|$)',
     ).firstMatch(normalized);
     if (costMatch != null) {
       cost = extractNumber(costMatch.group(1)!);
     } else {
       final currencyMatch = RegExp(
-        r'(\d+(?:[.,]\d+)?)\s*(?:zl|pln|zlotych|zloty)\b',
+        r'([^,.;]+?)\s*(?:zl|pln|zlotych|zloty)\b',
       ).firstMatch(normalized);
       if (currencyMatch != null) {
         cost = extractNumber(currencyMatch.group(1)!);
@@ -1082,7 +1200,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     double? odometer;
     final odometerMatch = RegExp(
-      r'(?:przebieg|licznik|stan licznika)\s*(?:to|jest)?\s*(\d+(?:[.,]\d+)?)',
+      r'(?:stan licznika|przebieg|licznik)\s*(?:to|jest)?\s*((?:\d[\d .]*)|(?:[a-z ]+?))(?=\s*(?:km|kilometrow|dystans|odcinek|,|$))',
     ).firstMatch(normalized);
     if (odometerMatch != null) {
       odometer = extractNumber(odometerMatch.group(1)!);
@@ -1090,10 +1208,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     double? trip;
     final tripMatch = RegExp(
-      r'(?:dystans|odcinek|kilometrow|km)\s*(?:to|jest)?\s*(\d+(?:[.,]\d+)?)',
+      r'(?:dystans|odcinek|przejechalem|przejechane)\s*(?:to|jest)?\s*((?:\d[\d .]*(?:[.,]\d+)?)|(?:[a-z ]+?))(?=\s*(?:km|kilometrow|,|$))',
     ).firstMatch(normalized);
     if (tripMatch != null) {
       trip = extractNumber(tripMatch.group(1)!);
+    } else {
+      final kmMatch = RegExp(r'((?:\d+(?:[.,]\d+)?)|(?:[a-z ]+?))\s*(?:km|kilometrow)\b').firstMatch(normalized);
+      if (kmMatch != null) trip = extractNumber(kmMatch.group(1)!);
     }
 
     DateTime? date;
@@ -1106,6 +1227,35 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       final year = int.tryParse(dateMatch.group(3) ?? '') ?? DateTime.now().year;
       if (day != null && month != null && day >= 1 && day <= 31 && month >= 1 && month <= 12) {
         date = DateTime(year, month, day);
+      }
+    } else {
+      final months = <String, int>{
+        'stycznia': 1, 'styczen': 1, 'styczniu': 1,
+        'lutego': 2, 'luty': 2, 'lutym': 2,
+        'marca': 3, 'marzec': 3, 'marcu': 3,
+        'kwietnia': 4, 'kwiecien': 4, 'kwietniu': 4,
+        'maja': 5, 'maj': 5, 'maju': 5,
+        'czerwca': 6, 'czerwiec': 6, 'czerwcu': 6,
+        'lipca': 7, 'lipiec': 7, 'lipcu': 7,
+        'sierpnia': 8, 'sierpien': 8, 'sierpniu': 8,
+        'wrzesnia': 9, 'wrzesien': 9, 'wrzesniu': 9,
+        'pazdziernika': 10, 'pazdziernik': 10, 'pazdzierniku': 10,
+        'listopada': 11, 'listopad': 11, 'listopadzie': 11,
+        'grudnia': 12, 'grudzien': 12, 'grudniu': 12,
+      };
+      final monthMatch = RegExp(
+        r'\b([a-z]+)\s+(stycznia|styczen|styczniu|lutego|luty|lutym|marca|marzec|marcu|kwietnia|kwiecien|kwietniu|maja|maj|maju|czerwca|czerwiec|czerwcu|lipca|lipiec|lipcu|sierpnia|sierpien|sierpniu|wrzesnia|wrzesien|wrzesniu|pazdziernika|pazdziernik|pazdzierniku|listopada|listopad|listopadzie|grudnia|grudzien|grudniu)\s+(.+?)\b',
+      ).firstMatch(normalized);
+      if (monthMatch != null) {
+        final day = _parsePolishSpokenNumber(monthMatch.group(1)!);
+        final month = months[monthMatch.group(2)!];
+        final year = _parsePolishSpokenNumber(monthMatch.group(3)!);
+        if (day != null && month != null) {
+          final resolvedYear = year?.round() ?? DateTime.now().year;
+          if (day >= 1 && day <= 31 && resolvedYear >= 2000 && resolvedYear <= 2100) {
+            date = DateTime(resolvedYear, month, day.round());
+          }
+        }
       }
     }
 
