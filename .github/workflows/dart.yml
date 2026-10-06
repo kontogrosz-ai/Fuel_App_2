@@ -30,6 +30,26 @@ jobs:
           rm -rf android
           flutter create . --platforms=android --org com.example.fueltracker
 
+      - name: Przywrócenie uprawnień mikrofonu dla rozpoznawania mowy
+        run: |
+          python3 - <<'PY2'
+          from pathlib import Path
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          text = manifest.read_text()
+          if 'android.permission.RECORD_AUDIO' not in text:
+              text = text.replace(
+                  '<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">',
+                  '<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">\n    <uses-permission android:name=\"android.permission.RECORD_AUDIO\" />',
+              )
+          if 'android.speech.RecognitionService' not in text:
+              text = text.replace(
+                  '<application',
+                  '    <queries>\n        <intent>\n            <action android:name=\"android.speech.RecognitionService\" />\n        </intent>\n    </queries>\n\n    <application',
+                  1,
+              )
+          manifest.write_text(text)
+          PY2
+
       - name: Globalna konfiguracja Gradle (Init Script)
         run: |
           mkdir -p ~/.gradle/init.d
