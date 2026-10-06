@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -576,6 +577,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   FuelType _chartFuelType = FuelType.lpg;
   FuelFilterState _fuelFilterState = FuelFilterState();
+  final stt.SpeechToText _speech = stt.SpeechToText();
 
   @override
   void initState() {
@@ -591,6 +593,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   void dispose() {
+    _speech.stop();
     _tabController.dispose();
     super.dispose();
   }
@@ -946,6 +949,246 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     };
   }
 
+  Map<String, dynamic> _parseVoiceFuelData(String text) {
+    final normalized = text
+        .toLowerCase()
+        .replaceAll('ł', 'l')
+        .replaceAll('ó', 'o')
+        .replaceAll('ą', 'a')
+        .replaceAll('ę', 'e')
+        .replaceAll('ś', 's')
+        .replaceAll('ć', 'c')
+        .replaceAll('ź', 'z')
+        .replaceAll('ż', 'z')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    FuelType? detectedType;
+    if (RegExp(r'\b(lpg|gaz|autogaz)\b').hasMatch(normalized)) {
+      detectedType = FuelType.lpg;
+    } else if (RegExp(r'\b(pb|pb95|pb98|benzyna|95|98)\b').hasMatch(normalized)) {
+      detectedType = FuelType.pb;
+    }
+
+    double? extractNumber(String value) {
+      final cleaned = value
+          .replaceAll(RegExp(r'(?<=\d)[\s.](?=\d)', caseSensitive: false), '')
+          .replaceAll(' ', '')
+          .replaceAll(',', '.');
+      return double.tryParse(cleaned);
+    }
+
+    double? liters;
+    final litersMatch = RegExp(
+      r'(\d+(?:[.,]\d+)?)\s*(?:l|litrow|litry|litr|litra)\b',
+    ).firstMatch(normalized);
+    if (litersMatch != null) {
+      liters = extractNumber(litersMatch.group(1)!);
+    }
+
+    double? cost;
+    final costMatch = RegExp(
+      r'(?:za|kwota|koszt|razem|suma|zaplacilem|zaplacono|do zaplaty)\s*(?:to|jest)?\s*(\d+(?:[.,]\d+)?)\s*(?:zl|pln|zlotych|zloty)?\b',
+    ).firstMatch(normalized);
+    if (costMatch != null) {
+      cost = extractNumber(costMatch.group(1)!);
+    } else {
+      final currencyMatch = RegExp(
+        r'(\d+(?:[.,]\d+)?)\s*(?:zl|pln|zlotych|zloty)\b',
+      ).firstMatch(normalized);
+      if (currencyMatch != null) {
+        cost = extractNumber(currencyMatch.group(1)!);
+      }
+    }
+
+    double? odometer;
+    final odometerMatch = RegExp(
+      r'(?:przebieg|licznik|stan licznika)\s*(?:to|jest)?\s*(\d+(?:[.,]\d+)?)',
+    ).firstMatch(normalized);
+    if (odometerMatch != null) {
+      odometer = extractNumber(odometerMatch.group(1)!);
+    }
+
+    double? trip;
+    final tripMatch = RegExp(
+      r'(?:dystans|odcinek|kilometrow|km)\s*(?:to|jest)?\s*(\d+(?:[.,]\d+)?)',
+    ).firstMatch(normalized);
+    if (tripMatch != null) {
+      trip = extractNumber(tripMatch.group(1)!);
+    }
+
+    DateTime? date;
+    final dateMatch = RegExp(
+      r'\b(\d{1,2})[./-](\d{1,2})(?:[./-](\d{4}))?\b',
+    ).firstMatch(normalized);
+    if (dateMatch != null) {
+      final day = int.tryParse(dateMatch.group(1)!);
+      final month = int.tryParse(dateMatch.group(2)!);
+      final year = int.tryParse(dateMatch.group(3) ?? '') ?? DateTime.now().year;
+      if (day != null && month != null && day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+        date = DateTime(year, month, day);
+      }
+    }
+
+    return {
+      'fuelType': detectedType,
+      'liters': liters,
+      'cost': cost,
+      'odometer': odometer,
+      'trip': trip,
+      'date': date,
+    };
+  }
+
+  Future<void> _showVoiceEntryDialog() async {
+    final available = await _speech.initialize(
+      onError: (error) => debugPrint('Błąd rozpoznawania mowy: ${error.errorMsg}'),
+      onStatus: (status) => debugPrint('Status rozpoznawania mowy: $status'),
+    );
+
+    if (!mounted) return;
+    if (!available) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Rozpoznawanie mowy nie jest dostępne na tym urządzeniu.'),
+        ),
+      );
+      return;
+    }
+
+    String recognizedText = '';
+    bool isListening = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> listen() async {
+              setDialogState(() => isListening = true);
+              await _speech.listen(
+                localeId: 'pl_PL',
+                listenMode: stt.ListenMode.confirmation,
+                listenFor: const Duration(seconds: 30),
+                pauseFor: const Duration(seconds: 3),
+                onResult: (result) {
+                  setDialogState(() {
+                    recognizedText = result.recognizedWords;
+                    isListening = !result.finalResult;
+                  });
+                },
+              );
+            }
+
+            Future<void> stopListening() async {
+              await _speech.stop();
+              if (context.mounted) {
+                setDialogState(() => isListening = false);
+              }
+            }
+
+            final parsed = _parseVoiceFuelData(recognizedText);
+            final hasData = parsed['fuelType'] != null ||
+                parsed['liters'] != null ||
+                parsed['cost'] != null ||
+                parsed['odometer'] != null ||
+                parsed['trip'] != null ||
+                parsed['date'] != null;
+
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.mic),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('Wprowadzanie głosowe')),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      isListening
+                          ? 'Mów po polsku. Przykład: „Zatankowałem LPG, 42 litry, za 125 zł, przebieg 184500”.'
+                          : 'Naciśnij mikrofon i podaj dane tankowania.',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade400),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        recognizedText.isEmpty ? 'Tutaj pojawi się rozpoznany tekst.' : recognizedText,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                    if (hasData) ...[
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Rozpoznane dane zostaną przekazane do formularza do sprawdzenia. Nic nie zostanie zapisane automatycznie.',
+                        style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    await _speech.stop();
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Anuluj'),
+                ),
+                if (recognizedText.isNotEmpty)
+                  TextButton(
+                    onPressed: () async {
+                      await _speech.stop();
+                      setDialogState(() {
+                        recognizedText = '';
+                        isListening = false;
+                      });
+                    },
+                    child: const Text('Wyczyść'),
+                  ),
+                FilledButton.icon(
+                  onPressed: isListening ? stopListening : listen,
+                  icon: Icon(isListening ? Icons.stop : Icons.mic),
+                  label: Text(isListening ? 'Zatrzymaj' : 'Mów'),
+                ),
+                if (hasData)
+                  ElevatedButton(
+                    onPressed: () async {
+                      await _speech.stop();
+                      final data = _parseVoiceFuelData(recognizedText);
+                      if (dialogContext.mounted) Navigator.pop(dialogContext);
+                      if (!mounted) return;
+                      _showEntryFormDialog(
+                        initialCost: data['cost'] as double?,
+                        initialLiters: data['liters'] as double?,
+                        initialType: data['fuelType'] as FuelType?,
+                        initialDate: data['date'] as DateTime?,
+                        initialTrip: data['trip'] as double?,
+                        initialOdometer: data['odometer'] as double?,
+                      );
+                    },
+                    child: const Text('Użyj danych'),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    await _speech.stop();
+  }
+
   void _showEntryFormDialog({
     FuelEntry? entryToEdit,
     double? initialCost,
@@ -1238,6 +1481,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 onTap: () {
                   Navigator.pop(context);
                   _scanReceipt(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.mic),
+                title: const Text('Wprowadź głosowo'),
+                subtitle: const Text('Mów po polsku — dane trafią do formularza do sprawdzenia'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showVoiceEntryDialog();
                 },
               ),
               ListTile(
