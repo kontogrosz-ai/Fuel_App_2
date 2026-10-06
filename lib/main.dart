@@ -891,52 +891,117 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     FuelType detectedType = FuelType.lpg;
     DateTime? detectedDate;
 
-    if (text.toUpperCase().contains('LPG') || text.toUpperCase().contains('AUTOGAZ')) {
+    final normalized = text
+        .replaceAll('\u00a0', ' ')
+        .replaceAll(RegExp(r'[ \t]+'), ' ')
+        .trim();
+    final upper = normalized.toUpperCase();
+
+    // Typ paliwa: Fuel App ma obecnie dwa typy — LPG oraz PB.
+    // PB95/PB98/benzyna są więc mapowane do istniejącego typu PB.
+    if (RegExp(r'\b(LPG|AUTOGAZ|GAZ)\b', caseSensitive: false).hasMatch(upper)) {
       detectedType = FuelType.lpg;
-    } else if (text.toUpperCase().contains('PB') || text.toUpperCase().contains('BENZYNA') || text.toUpperCase().contains('95') || text.toUpperCase().contains('98')) {
+    } else if (RegExp(r'\b(PB\s*(?:95|98)?|PB95|PB98|BENZYNA)\b', caseSensitive: false).hasMatch(upper)) {
       detectedType = FuelType.pb;
     }
 
-    final RegExp litersRegex = RegExp(r'(\d+[\.,]\d{1,2})\s*(l|litr|litry|ltr)\b', caseSensitive: false);
-    final litersMatch = litersRegex.firstMatch(text);
-    if (litersMatch != null) {
-      String rawLiters = litersMatch.group(1)!.replaceAll(',', '.');
-      detectedLiters = double.tryParse(rawLiters);
+    double? parseNumber(String raw) {
+      final cleaned = raw
+          .replaceAll(' ', '')
+          .replaceAll(',', '.')
+          .replaceAll(RegExp(r'[^0-9.]'), '');
+      return double.tryParse(cleaned);
     }
 
-    final RegExp costRegex = RegExp(
-      r'(?:suma|razem|kwota|suma\s+pln)(?:\s+(?:pln|zł|zl))?\s*[:=]?\s*(\d+[\.,]\d{2})',
+    // Litry: obsługujemy polski przecinek i typowe warianty OCR: L, litr, litry, litra.
+    final litersRegex = RegExp(
+      r'(\d{1,4}(?:[\.,]\d{1,3})?)\s*(?:l|ltr|litr|litry|litra|litrów)\b',
       caseSensitive: false,
     );
-    
-    final costMatch = costRegex.firstMatch(text);
-    if (costMatch != null) {
-      String rawCost = costMatch.group(1)!.replaceAll(',', '.');
-      detectedCost = double.tryParse(rawCost);
-    } else {
-      final RegExp plnRegex = RegExp(r'(\d+[\.,]\d{2})\s*(?:pln|zł)', caseSensitive: false);
-      final plnMatch = plnRegex.firstMatch(text);
-      if (plnMatch != null) {
-        String rawCost = plnMatch.group(1)!.replaceAll(',', '.');
-        detectedCost = double.tryParse(rawCost);
+    final litersMatch = litersRegex.firstMatch(normalized);
+    if (litersMatch != null) {
+      detectedLiters = parseNumber(litersMatch.group(1)!);
+    }
+
+    // Kwota końcowa: najpierw szukamy etykiet, które jednoznacznie oznaczają
+    // sumę do zapłaty. Dzięki temu cena jednostkowa np. "6,49 zł/l" nie zostanie
+    // potraktowana jako koszt całego tankowania.
+    final totalLabels = RegExp(
+      r'\b(RAZEM|SUMA(?:\s+PLN)?|DO\s+ZAPŁATY|DO\s+ZAPL?ATY|ZAPŁACONO|ZAPLACONO|NALEŻNOŚĆ|NALEZNOSC|KWOTA\s+DO\s+ZAPŁATY|KWOTA\s+DO\s+ZAPL?ATY)\b',
+      caseSensitive: false,
+    );
+    final amountRegex = RegExp(r'(?<!\d)(\d{1,6}[\.,]\d{2})(?!\d)');
+
+    double? labeledTotal;
+    for (final line in normalized.split(RegExp(r'[\r\n]+'))) {
+      if (!totalLabels.hasMatch(line)) continue;
+      final matches = amountRegex.allMatches(line).toList();
+      for (final match in matches) {
+        final after = line.substring(match.end).toLowerCase();
+        // Nie przyjmuj wartości opisanej jako cena za litr / jednostkę.
+        if (RegExp(r'(?:/\s*l|za\s*litr|za\s*1\s*l)').hasMatch(after)) continue;
+        final value = parseNumber(match.group(1)!);
+        if (value != null && value > 0) {
+          labeledTotal = value;
+        }
+      }
+      if (labeledTotal != null) break;
+    }
+
+    detectedCost = labeledTotal;
+
+    // Drugi poziom: kwota z walutą, ale z pominięciem ceny jednostkowej za litr.
+    if (detectedCost == null) {
+      final currencyRegex = RegExp(
+        r'(?<!\d)(\d{1,6}[\.,]\d{2})\s*(?:PLN|ZŁ|ZL)(?!\s*/\s*L)(?!\s*ZA\s*LITR)',
+        caseSensitive: false,
+      );
+      final candidates = <double>[];
+      for (final match in currencyRegex.allMatches(normalized)) {
+        final value = parseNumber(match.group(1)!);
+        if (value != null && value > 0) candidates.add(value);
+      }
+      if (candidates.isNotEmpty) {
+        // Przy braku jednoznacznej etykiety wybieramy największą kwotę z walutą.
+        // Typowy paragon ma cenę jednostkową i kwotę końcową; większa wartość
+        // odpowiada wtedy całemu tankowaniu.
+        detectedCost = candidates.reduce((a, b) => a > b ? a : b);
       }
     }
 
-    final regYMD = RegExp(r'\b(20\d{2})[-./](0[1-9]|1[0-2])[-./](0[1-9]|[12]\d|3[01])\b');
-    final matchYMD = regYMD.firstMatch(text);
+    // Trzeci poziom: awaryjnie szukamy kwot przy etykietach "kwota"/"cena",
+    // nadal ignorując zapis ceny za litr.
+    if (detectedCost == null) {
+      final fallbackLabel = RegExp(
+        r'\b(KWOTA|KOSZT|WARTOŚĆ|WARTOSC)\b[^\r\n]{0,30}?([0-9]{1,6}[\.,][0-9]{2})',
+        caseSensitive: false,
+      );
+      for (final match in fallbackLabel.allMatches(normalized)) {
+        final line = match.group(0)!;
+        if (RegExp(r'(?:/\s*l|za\s*litr|za\s*1\s*l)', caseSensitive: false).hasMatch(line)) continue;
+        final value = parseNumber(match.group(2)!);
+        if (value != null && value > 0) {
+          detectedCost = value;
+          break;
+        }
+      }
+    }
 
+    // Data: YYYY-MM-DD / YYYY.MM.DD / YYYY/MM/DD albo DD-MM-YYYY itd.
+    final regYMD = RegExp(r'\b(20\d{2})[-./](0[1-9]|1[0-2])[-./](0[1-9]|[12]\d|3[01])\b');
+    final matchYMD = regYMD.firstMatch(normalized);
     if (matchYMD != null) {
-      int year = int.parse(matchYMD.group(1)!);
-      int month = int.parse(matchYMD.group(2)!);
-      int day = int.parse(matchYMD.group(3)!);
+      final year = int.parse(matchYMD.group(1)!);
+      final month = int.parse(matchYMD.group(2)!);
+      final day = int.parse(matchYMD.group(3)!);
       detectedDate = DateTime(year, month, day);
     } else {
       final regDMY = RegExp(r'\b(0[1-9]|[12]\d|3[01])[-./](0[1-9]|1[0-2])[-./](20\d{2})\b');
-      final matchDMY = regDMY.firstMatch(text);
+      final matchDMY = regDMY.firstMatch(normalized);
       if (matchDMY != null) {
-        int day = int.parse(matchDMY.group(1)!);
-        int month = int.parse(matchDMY.group(2)!);
-        int year = int.parse(matchDMY.group(3)!);
+        final day = int.parse(matchDMY.group(1)!);
+        final month = int.parse(matchDMY.group(2)!);
+        final year = int.parse(matchDMY.group(3)!);
         detectedDate = DateTime(year, month, day);
       }
     }
