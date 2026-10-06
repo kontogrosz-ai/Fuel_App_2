@@ -55,3 +55,20 @@ Obsługiwane priorytety kwoty końcowej: RAZEM, SUMA, SUMA PLN, DO ZAPŁATY, ZAP
 - Dodano jawne rozpoznawanie etykiety **SUMA PLN** jako priorytetowej etykiety kwoty końcowej.
 - OCR nadal pomija ceny jednostkowe, np. `6,49 zł/l`, przy ustalaniu kosztu całego tankowania.
 
+
+### 08 — nagłówek aplikacji
+- Zmieniono nagłówek górnego paska z **Fuel App - Zarządzanie paliwem** na **Fuel App**.
+- Nagłówek jest wyśrodkowany.
+
+
+### 09 — kolejność filtrów zakładki Wykresy
+- W pod-zakładce **Wykresy** kolejność filtrów zmieniono z **Wszystko / Ostatnie 12M** na **Ostatnie 12M / Wszystko**.
+- Działanie filtrów pozostaje bez zmian.
+- Zaktualizowano nazwę artefaktu APK w workflow GitHub Actions zgodnie z nową numeracją: **09_Fuel_App_WYKRESY_FILTRY_apk.apk**.
+
+
+## ETAP 09 – Wykresy: kolejność filtrów i nazewnictwo eksportu
+- W zakładce Wykresy, dla LPG/Benzyna (PB), kolejność filtrów ustawiono: **Ostatnie 12M / Wszystko**.
+- Paczka źródłowa do GitHub: `09_Fuel_App_WYKRESY_FILTRY.zip`.
+- APK generowane przez GitHub Actions: `09_Fuel_App_WYKRESY_FILTRY.apk`.
+- ZIP zawierający gotowy APK (poza paczką źródłową GitHub): `09_Fuel_App_WYKRESY_FILTRY_apk.zip`.

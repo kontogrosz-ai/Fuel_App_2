@@ -1599,7 +1599,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Fuel App - Zarządzanie paliwem'),
+        title: const Center(child: Text('Fuel App')),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -1833,8 +1833,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           const SizedBox(height: 8),
           SegmentedButton<ChartPeriodOption>(
             segments: const [
-              ButtonSegment(value: ChartPeriodOption.all, label: Text('Wszystko')),
               ButtonSegment(value: ChartPeriodOption.year, label: Text('Ostatnie 12M')),
+              ButtonSegment(value: ChartPeriodOption.all, label: Text('Wszystko')),
             ],
             selected: {currentPeriod},
             onSelectionChanged: (Set<ChartPeriodOption> newSelection) {
