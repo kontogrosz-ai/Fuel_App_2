@@ -941,7 +941,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     // sumę do zapłaty. Dzięki temu cena jednostkowa np. "6,49 zł/l" nie zostanie
     // potraktowana jako koszt całego tankowania.
     final totalLabels = RegExp(
-      r'\b(RAZEM|SUMA(?:\s+PLN)?|DO\s+ZAPŁATY|DO\s+ZAPL?ATY|ZAPŁACONO|ZAPLACONO|NALEŻNOŚĆ|NALEZNOSC|KWOTA\s+DO\s+ZAPŁATY|KWOTA\s+DO\s+ZAPL?ATY)\b',
+      r'\b(RAZEM|SUMA\s+PLN|SUMA|DO\s+ZAPŁATY|DO\s+ZAPL?ATY|ZAPŁACONO|ZAPLACONO|NALEŻNOŚĆ|NALEZNOSC|KWOTA\s+DO\s+ZAPŁATY|KWOTA\s+DO\s+ZAPL?ATY)\b',
       caseSensitive: false,
     );
     final amountRegex = RegExp(r'(?<!\d)(\d{1,6}[\.,]\d{2})(?!\d)');

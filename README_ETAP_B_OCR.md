@@ -51,3 +51,7 @@ Obsługiwane priorytety kwoty końcowej: RAZEM, SUMA, SUMA PLN, DO ZAPŁATY, ZAP
 - Zmieniono najwcześniejszą możliwą datę wyboru w kalendarzu z **01.01.2020** na **01.01.2026**.
 - Zmiana dotyczy wyboru daty tankowania oraz własnego zakresu dat w filtrach.
 - Data końcowa nadal jest ustawiana na bieżący dzień.
+### 08 — priorytet „SUMA PLN” w OCR
+- Dodano jawne rozpoznawanie etykiety **SUMA PLN** jako priorytetowej etykiety kwoty końcowej.
+- OCR nadal pomija ceny jednostkowe, np. `6,49 zł/l`, przy ustalaniu kosztu całego tankowania.
+
