@@ -1286,7 +1286,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     }
 
     String recognizedText = '';
+    String confirmedText = '';
     bool isListening = false;
+    bool manualStopRequested = false;
+    bool restartPending = false;
 
     await showDialog<void>(
       context: context,
@@ -1294,28 +1297,70 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            Future<void> listen() async {
-              setDialogState(() => isListening = true);
-              await _speech.listen(
-                localeId: 'pl_PL',
-                listenMode: stt.ListenMode.confirmation,
-                listenFor: const Duration(seconds: 30),
-                pauseFor: const Duration(seconds: 3),
-                onResult: (result) {
-                  setDialogState(() {
-                    recognizedText = result.recognizedWords;
-                    isListening = !result.finalResult;
-                  });
-                },
-              );
-            }
+            late Future<void> Function() listen;
 
             Future<void> stopListening() async {
+              manualStopRequested = true;
+              restartPending = false;
               await _speech.stop();
               if (context.mounted) {
                 setDialogState(() => isListening = false);
               }
             }
+
+            listen = () async {
+              if (isListening || !context.mounted) return;
+
+              manualStopRequested = false;
+              restartPending = false;
+              setDialogState(() => isListening = true);
+
+              await _speech.listen(
+                localeId: 'pl_PL',
+                // Dictation jest lepszym trybem dla dłuższej, ciągłej wypowiedzi.
+                listenMode: stt.ListenMode.dictation,
+                listenFor: const Duration(seconds: 60),
+                pauseFor: const Duration(seconds: 5),
+                partialResults: true,
+                onResult: (result) {
+                  if (!context.mounted) return;
+
+                  final segment = result.recognizedWords.trim();
+                  if (segment.isEmpty) return;
+
+                  setDialogState(() {
+                    if (result.finalResult) {
+                      // Każdy zakończony fragment dokładamy do poprzednich fragmentów.
+                      // Dzięki temu automatyczne wznowienie nasłuchiwania nie gubi początku wypowiedzi.
+                      if (confirmedText.isEmpty) {
+                        confirmedText = segment;
+                      } else if (!confirmedText.toLowerCase().endsWith(segment.toLowerCase())) {
+                        confirmedText = '$confirmedText $segment';
+                      }
+                      recognizedText = confirmedText.trim();
+                      isListening = false;
+                    } else {
+                      recognizedText = confirmedText.isEmpty
+                          ? segment
+                          : '$confirmedText $segment';
+                    }
+                  });
+
+                  if (result.finalResult && !manualStopRequested && !restartPending && context.mounted) {
+                    restartPending = true;
+                    // Androidowe rozpoznawanie mowy potrafi zakończyć pojedynczą sesję
+                    // po krótkiej pauzie. Automatycznie uruchamiamy kolejną sesję,
+                    // zachowując już rozpoznany tekst.
+                    Future<void>.delayed(const Duration(milliseconds: 350), () async {
+                      restartPending = false;
+                      if (!manualStopRequested && context.mounted && dialogContext.mounted) {
+                        await listen();
+                      }
+                    });
+                  }
+                },
+              );
+            };
 
             final parsed = _parseVoiceFuelData(recognizedText);
             final hasData = parsed['fuelType'] != null ||
@@ -1340,7 +1385,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   children: [
                     Text(
                       isListening
-                          ? 'Mów po polsku. Przykład: „Zatankowałem LPG, 42 litry, za 125 zł, przebieg 184500”.'
+                          ? 'Mów po polsku. Możesz podać wszystkie dane w jednej wypowiedzi. Nasłuchiwanie wznowi się automatycznie po krótkiej pauzie.'
                           : 'Naciśnij mikrofon i podaj dane tankowania.',
                       style: const TextStyle(fontSize: 13),
                     ),
@@ -1369,6 +1414,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               actions: [
                 TextButton(
                   onPressed: () async {
+                    manualStopRequested = true;
                     await _speech.stop();
                     if (dialogContext.mounted) Navigator.pop(dialogContext);
                   },
@@ -1377,9 +1423,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 if (recognizedText.isNotEmpty)
                   TextButton(
                     onPressed: () async {
+                      manualStopRequested = true;
                       await _speech.stop();
                       setDialogState(() {
                         recognizedText = '';
+                        confirmedText = '';
                         isListening = false;
                       });
                     },
@@ -1393,6 +1441,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 if (hasData)
                   ElevatedButton(
                     onPressed: () async {
+                      manualStopRequested = true;
                       await _speech.stop();
                       final data = _parseVoiceFuelData(recognizedText);
                       if (dialogContext.mounted) Navigator.pop(dialogContext);
