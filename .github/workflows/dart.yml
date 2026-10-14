@@ -95,5 +95,5 @@ jobs:
       - name: Udostępnienie pliku APK do pobrania
         uses: actions/upload-artifact@v4
         with:
-          name: 10_Fuel_App_GLOS_POPRAWA
+          name: 10_Fuel_App_GLOS_POPRAWA_v2_apk
           path: build/app/outputs/renamed/10_Fuel_App_GLOS_POPRAWA.apk
